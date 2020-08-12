@@ -1,0 +1,360 @@
+反射
+Type、Value
+
+Vouv
+https://github.com/vouv
+
+# 反射基础
+
+反射：反射是指计算机程序在运行时（Runtime）可以访问、检测和修改本身状态或行为的一种能力。
+
+对于一个Go的类型变量，它有两层含义：类型是什么，存储的值是什么。Golang的反射建立在类型系统基础之上，和接口有密切联系。
+
+*源码分析*
+
+在 `reflect/type.go` 中定义了描述类型公共信息的结构rtype，实际上和 `runtime/type.go` 中的 _type是一致的，只是由于包的隔离性分开定义了。
+
+rtype实现了接口reflect.Type，可以通过调用 reflect.TypeOf() 获取对象的类型信息。
+
+```go
+// src/reflect/type.go
+// rtype is the common implementation of most values.
+// It is embedded in other struct types.
+//
+// rtype must be kept in sync with ../runtime/type.go:/^type._type.
+type rtype struct {
+	size       uintptr
+	ptrdata    uintptr  // number of bytes in the type that can contain pointers
+	hash       uint32   // hash of type; avoids computation in hash tables
+	tflag      tflag    // extra type information flags
+	align      uint8    // alignment of variable with this type
+	fieldAlign uint8    // alignment of struct field with this type
+	kind       uint8    // enumeration for C
+	alg        *typeAlg // algorithm table
+	gcdata     *byte    // garbage collection data
+	str        nameOff  // string form
+	ptrToThis  typeOff  // type for pointer to this type, may be zero
+}
+```
+
+.play core/reflect/type.go
+
+# reflect.Type
+
+reflect包中定义了 reflect.Type 接口，其中的通用方法代码结构如下
+
+```go
+// src/reflect/type.go
+// 并不是所有类型都可以调用这里定义的方法，不然有可能引起panic
+// 如果不知道类型是什么，先调用Kind()方法确定类型再决定调用对应的类型专有方法
+type Type interface {
+	Align() int     // 字节对齐量
+	FieldAlign() int    // 对一个结构体的属性调用此方法的时候，返回字节对齐量
+
+	// 通过索引值访问方法，取值区间在 [0, NumMethod()) 之间，否则会panic
+	Method(int) Method
+
+	// 通过方法名获取方法
+	MethodByName(string) (Method, bool)
+
+	// 获取类型拥有的方法数量
+	NumMethod() int
+
+	// 返回包含包名的类型名字，对未命名类型返回空串
+	Name() string
+
+	// 返回类型的包路径，如果类型是预声明类型或未命名类型，返回空串
+	PkgPath() string
+
+	// 返回该类型实例占用的内存字节空间
+	Size() uintptr
+
+	// 返回可代表类型的字符串
+	// (e.g., base64 instead of "encoding/base64")
+	String() string
+
+	// 返回该类型的底层基础类型
+	Kind() Kind
+
+	// 返回该类型是否实现了u的接口类型
+	Implements(u Type) bool
+
+	// 判断当前类型是否可以赋值给type为u的类型变量
+	AssignableTo(u Type) bool
+
+	// 判断当前类型是否可以强制转换为u的类型变量
+	ConvertibleTo(u Type) bool
+
+	// 判断当前类型是否可比较（使用 == 或 !=），如果可以就可以作为map的key
+	Comparable() bool
+
+	// 以下是不同基础类型的专有方法，支持的类型如下
+	//
+	//	Int*, Uint*, Float*, Complex*: Bits
+	//	Array: Elem, Len
+	//	Chan: ChanDir, Elem
+	//	Func: In, NumIn, Out, NumOut, IsVariadic.
+	//	Map: Key, Elem
+	//	Ptr: Elem
+	//	Slice: Elem
+	//	Struct: Field, FieldByIndex, FieldByName, FieldByNameFunc, NumField
+
+	// 数值类型占用的位数
+	Bits() int
+
+	// chan专有，返回chan 中数据类型
+	ChanDir() ChanDir
+
+	// func类型专有，返回函数是否是不确定参数的函数
+	IsVariadic() bool
+
+	// 返回类型的元信息类型
+	// 只支持这些类型调用： Array, Chan, Map, Ptr, Slice
+	Elem() Type
+
+	// struct专有，返回第i个属性，范围[0, NumField()).
+	Field(i int) StructField
+
+	// struct专有，通过嵌入字段获取属性
+	FieldByIndex(index []int) StructField
+
+	// struct专有，通过名字查找属性，返回的bool表示是否找到
+	FieldByName(name string) (StructField, bool)
+
+	// struct专有，通过match函数选择字段
+	FieldByNameFunc(match func(string) bool) (StructField, bool)
+
+	// func专有，返回第i个入参，范围 [0, NumIn()).
+	In(i int) Type
+
+	// map专有，返回key的类型
+	Key() Type
+
+	// array专有，返回类型长度
+	Len() int
+
+	// struct专有，返回属性数
+	NumField() int
+
+	// func专有，函数输入参数的个数
+	NumIn() int
+
+	// func专有，函数返回值个数
+	NumOut() int
+
+	// func专有，返回第i个返回值的类型，范围 [0, NumOut())
+	Out(i int) Type
+
+	common() *rtype
+	uncommon() *uncommonType
+}
+```
+
+其中Kind类型定义如下
+
+```go
+// src/reflect.type.go
+// 可以看到Kind是uint的命名类型，Kind的0值表示非法类型
+type Kind uint
+
+const (
+	Invalid Kind = iota
+	Bool
+	Int
+	Int8
+	Int16
+	Int32
+	Int64
+	Uint
+	Uint8
+	Uint16
+	Uint32
+	Uint64
+	Uintptr
+	Float32
+	Float64
+	Complex64
+	Complex128
+	Array
+	Chan
+	Func
+	Interface
+	Map
+	Ptr
+	Slice
+	String
+	Struct
+	UnsafePointer
+)
+```
+
+*类型汇总*
+
+Go的类型看似复杂，实则很精炼，只有掌握类型，才能掌握接口和反射。
+
+```
+简单类型    复合类型    类型字面量   自定义类型
+命名类型    未命名类型
+接口类型    具体类型
+底层类型    基础类型
+动态类型    静态类型
+```
+
+.play core/reflect/type_interface.go
+.play core/reflect/type_raw.go
+
+# reflect.Value
+
+reflect.Value 表示实例的值信息，在Go中被定义为一个struct，并提供了一系列接口。代码结构如下
+
+```go
+// src.reflect/value.go
+// Value is the reflection interface to a Go value.
+// 对Value提供的方法，也不是所有类型都适用，使用不当会引发panic
+type Value struct {
+	// 保存值的元数据类型
+	typ *rtype
+
+	// 表示指向值的指针
+	// Valid when either flagIndir is set or typ.pointers() is true.
+	ptr unsafe.Pointer
+
+	// 标记字段
+	// flag holds metadata about the value.
+	flag
+}
+```
+
+.play core/reflect/value.go
+.play core/reflect/value_raw.go
+
+# 反射规则与API
+
+在反射的概念中，主要包含了实例、Type和Value之间的互相转化。因此反射提供的API正是为此服务的。
+
+### 1. 从实例到Value
+
+```go
+func ValueOf(i interface{}) Value
+```
+
+### 2.从实例到Type
+
+```go
+func TypeOf(i interface{}) Type
+```
+
+### 3.从Type到Value
+
+```go
+Type只有类型信息没有值信息，无法直接从Type获得Value，不过reflect包提供了三种方法
+
+// 返回一个Value，该Value的type为Ptr(typ)
+func New(typ Type) Value
+
+// 返回一个typ类型的零值，返回的Value不能寻址，值不可变
+func Zero(typ Type) Value
+
+// 知道一个类型值的底层存放地址，可以由此获取Value
+func NewAt(typ Type, p unsafe.Pointer) Value
+```
+
+### 4. 从Value到Value
+
+```go
+// 从Value到Type
+func (v Value) Type() Type
+```
+
+### 5. 从Value到实例
+
+```go
+// 用接口类型去还原接收具体类型
+func (v Value) Interface() (i interface{})
+
+// 快捷方法，快速获取实例
+func (v Value) Bool() bool
+func (v Value) Float() float64
+func (v Value) Uint() uint64
+```
+
+### 6. 从Value的指针到值
+
+```go
+// v是类型接口返回绑定实例的Value，如果是指针返回指针值的Value，否则panic
+func (v Value) ELem() Value
+
+// v是指针则返回指针值Value，否则返回v自身，不会panic
+func Indirect(v Value) Value
+```
+
+### 7. Type指针和值
+
+```go
+// 指针类型Type到值类型Type
+// array、chan、map、ptr、slice专有，返回内部元素的Type
+t.ELem() Type
+
+// 值类型Type到指针类型Type
+func PtrTo(t Type) Type
+```
+
+### 8. Value值的可修改性
+
+```go
+// 判断能否修改
+// 调用reflect.ValueOf()的时候传入值类型实际上是副本，不可修改
+// 如果传入指针类型，接口内部转换也是指针的副本，但是能访问到原始对象，所以能修改
+func (v Value) CanSet() bool
+
+// 修改
+func (v Value) Set(x Value)
+```
+
+*反射三定律*
+
+```
+（1）反射可以从接口值得到接口对象。
+
+（2）反射可以从反射对象获得接口值。
+
+（3）要修改一个反射对象，则其值必须可以修改。
+```
+
+*参考*
+
+[[https://blog.golang.org/laws-of-reflection][The Laws of Reflection]]
+
+.play core/reflect/value_rule.go
+
+# 依赖注入和控制反转
+
+*控制反转*
+
+正常来说调用方会显式调用函数或者初始化对象，表示直接行为；而"控制反转"就是将这种直接的行为变成间接的行为，由第三方框架进行函数调用或对象初始化，通常由框架驱动整个程序。
+
+"控制反转"在Java的Spring框架就是一个代表性的应用。
+
+*依赖注入*
+
+如果说"控制反转"是一种设计思想，那么"依赖注入"就是它的一种实现方式，通过动态注入参数或初始化对象实现控制反转。
+
+*注意*
+
+虽然说控制反转是解决复杂逻辑问题的一种办法，尤其是Web框架对路由和中间件的整合上提供了灵活的方式。但是还要考虑是否有其他简单的办法如模块化拆分等，以及引入框架给整个程序增加了复杂性。
+
+*反射优点*
+
+对多场景的灵活处理体现通用性、动态修改程序带来灵活性
+
+*反射缺点*
+
+动态修改程序状态会导致脆弱性、复杂性导致代码难以理解、动态修改程序状态会带来性能损失
+
+*反射使用最佳实践*
+
+（1）在框架内部使用，不对外暴露接口
+（2）框架层面的代码才考虑使用反射，业务层面的代码一般不需要
+（3）除非有必要，一般不使用反射
+
+.play core/reflect/ioc.go

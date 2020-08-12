@@ -1,0 +1,345 @@
+并发
+goroutine、GPM、chan、select、context
+
+Vouv
+https://github.com/vouv
+
+# 并发基础
+
+最基础的并发模型就是由操作系统提供的多进程和多线程模型。
+
+- 并发：多任务在一段时间内被执行，问题域的概念，强调同时处理多个任务能力，具有被动性
+- 并行：多任务在同一时刻被同时执行，方法域的概念，强调分解任务同时进行的能力，具有主动性
+
+CSP（communicating sequential processes）并发模型：“不要以共享内存的方式来通信，相反，要通过通信来共享内存。”
+
+*参考*
+
+[[https://golang.org/ref/mem][The Go Memory Model]]
+
+.play core/concurrent/goroutine.go
+.play core/raw/runtime2_raw.go
+
+# goroutine
+
+*特性*
+
+- goroutine执行是非阻塞的
+- go之后函数的返回值会被忽略
+- 调度器不能保证多个go程执行顺序
+- Golang没有暴露goroutine的ID给用户，不能显式的去操控另一个goroutine
+
+*源码分析*
+
+goroutine的代码结构如下
+
+```
+// src/runtime/runtime2.go
+type g struct {
+	stack       stack   // 真实的栈信息，包括上下界
+	...
+	m              *m      // 当前M的引用
+	sched          gobuf  // 切换g时,用于保存上下文, 不需要线程来负责这部分数据
+	...
+	param          unsafe.Pointer // 运行G时传入的参数
+	goid           int64 // goroutine ID
+	waitsince      int64      // g被阻塞的时间
+	...
+}
+```
+
+因为实现协程调度是一个很复杂的工作，协程有自己的 堆栈指针，所以结构体的定义很复杂。
+
+这里要注意的是，sched 字段保存了 goroutine 的上下文，使得切换 goroutine 的时候不需要OS来处理，变得更加高效，gobuf 代码结构如下
+
+```
+// src/runtime/runtime2.go
+type gobuf struct {
+	sp   uintptr // sp指针
+	pc   uintptr // pc指针
+	g    guintptr
+	ctxt unsafe.Pointer // 上下文
+	ret  sys.Uintreg
+	lr   uintptr
+	bp   uintptr // for GOEXPERIMENT=framepointer
+}
+```
+
+.play core/concurrent/goroutine.go
+.play core/raw/runtime2_raw.go
+
+# MPG模型
+
+Golang并发模型实现采用两级线程模型的方式如下图
+
+.image /content/img/core/n-m.png 250 250
+
+源码注释如下
+
+```
+// src/runtime/proc.go
+// The main concepts are:
+// G - goroutine.
+// M - worker thread, or machine.
+// P - processor, a resource that is required to execute Go code.
+//     M must have an associated P to execute Go code, however it can be
+//     blocked or in a syscall w/o an associated P.
+//
+// Design doc at https://golang.org/s/go11sched.
+```
+
+[[https://golang.org/s/go11sched][GO调度器官方设计文档]]
+
+在语言层面引入goroutine的好处
+
+- goroutine可以在用户空间调度，避免内核态用户态切换的开销
+- goroutine是语言层面支持的并发，屏蔽了底层复杂的实现
+- goroutine有更小的栈空间，允许用户创建更多的实例
+
+*G（Goroutine）*
+
+G 代表一个 goroutine 的抽象，G 中存放 goroutine 代码入口，上下文，运行栈等信息。
+
+G 新建的时候会添加到本地运行队列或全局运行队列，等待 M 取出执行。
+
+*M（Machine）*
+
+M 代表一个 OS 内核线程，是操作系统层面调度和执行的实体。M 只负责执行，它不停地被唤醒或创建，然后执行。M 启动时首先进入 Go 运行时管理代码，这段代码获取 G 和 P 资源，然后才开始执行调度。
+
+另外，Go 会创建一个监控线程，负责对程序内存和调度进行监控。
+
+M代码结构定义如下
+
+```
+// src/runtime/runtime2.go
+type m struct {
+	// M自己有一个 g0 ，g0 不指向任何函数，调度或系统调用的时候会切到 g0 的栈空间
+	g0      *g
+
+	morebuf gobuf  // gobuf arg to morestack
+	...
+	// Fields not known to debuggers.
+	gsignal       *g           	// 用于处理信号的g
+	sigmask       sigset       // 信号屏蔽码 signal mask
+	mstartfn      func()    // M启动函数
+	curg          *g       // 当前正在运行的 goroutine
+	p             puintptr // 运行 G 时所绑定的 P
+	oldp          puintptr // 如果绑定的P正在执行系统调用，它就会被放到这里
+	id            int64
+	incgo         bool   // m 是否在执行 cgo 调用
+	createstack   [32]uintptr // 创建本线程时的栈
+	...
+}
+```
+
+*P（Processor）*
+
+P 代表 M 运行 G 所需要的资源，P 是用于管理的数据结构，P 的数量决定 Go 的最大并发数。P 持有 G 的本地队列LRQ（local runnable queue），P 可以隔离调度，解除 P 和 M 的绑定就解除了 M 对一串 G 的调用。
+
+P的代码结构如下
+
+```
+// src/runtime/runtime2.go
+type p struct {
+	id          int32
+	status      uint32     // P 当前状态
+	schedtick   uint32     // 调度计数
+	syscalltick uint32     // 系统调用计
+	sysmontick  sysmontick // last tick observed by sysmon
+	m           muintptr   // 运行 G 时所绑定的M
+	mcache      *mcache    // 内存分配的本地缓存
+	raceprocctx uintptr
+	...
+	// 本地LRQ，访问不需要锁
+	runqhead uint32
+	runqtail uint32
+	runq     [256]guintptr
+	runnext guintptr       // 指向下一个就绪的 G
+	// Per-P GC state
+	gcAssistTime         int64    // gc 介入的时间
+	...
+}
+```
+
+M 必须绑定 P 才能运行的主要原因是遇到内核线程阻塞的时候可以暂时放开上下文去运行其他 P 。
+
+M 和 P 绑定后才能构成一个 G 的运行时环境，如果LRQ空了，会去全局队列 GRQ（global runnable queue）获取一部分 G，或者从其他 P 中偷一半（[[http://supertech.csail.mit.edu/papers/steal.pdf][Work Stealing算法]]）。
+
+偷取G的关键代码如下（省略实现）
+
+```
+// src/runtime/proc.go 从其他 P 中偷一半G
+// Steal half of elements from local runnable queue of p2
+// and put onto local runnable queue of p.
+// Returns one of the stolen elements (or nil if failed).
+func runqsteal(_p_, p2 *p, stealRunNextG bool) *g {}
+
+// 从全局队列中获取一部分 G
+// Try get a batch of G's from the global runnable queue.
+// Sched must be locked.
+func globrunqget(_p_ *p, max int32) *g {}
+```
+GPM整体调度结构如下图
+
+.image /content/img/core/gpm.png 250 350
+
+*m0和g0*
+
+m0 是程序启动后的主线程，负责初始化和启动第一个 G，之后就和其他M一样了。
+
+每个 M 都会有自己一个 g0，用于管理和调度逻辑的时候使用。
+
+*M、P、G的创建*
+
+因为 G 是可以复用的，所以并不是并发执行的地方有可能创建 G 。
+
+.play core/concurrent/goroutine.go
+.play core/raw/runtime2_raw.go
+.play core/raw/proc_raw.go
+
+# chan
+
+代码结构如下
+
+```
+// src/runtime/chan.go
+type hchan struct {
+	qcount   uint           // queue 中数据计数
+	dataqsiz uint           // 缓冲 buf 的容量
+	buf      unsafe.Pointer // points to an array of dataqsiz elements
+	elemsize uint16         // 数据大小
+	closed   uint32         // 是否关闭
+	elemtype *_type         // 保存队列中数据类型元信息
+	sendx    uint           // 指向 buf 需要发送数据的 idx
+	recvx    uint           // 指向 buf 中接收数据的 idx
+	recvq    waitq          // 等待接收的 G 队列
+	sendq    waitq          // 等待发送的 G 队列
+
+	// lock protects all fields in hchan, as well as several
+	// fields in sudogs blocked on this channel.
+	//
+	// Do not change another G's status while holding this lock
+	// (in particular, do not ready a G), as this can deadlock
+	// with stack shrinking.
+	lock mutex              // 互斥锁保证原子操作
+}
+```
+
+对于有缓冲的chan c，应有:
+
+- 如果 c.qcount > 0 ，表示 c.recvq 为空
+- 如果 c.qcount < c.dataqsiz ，表示 c.sendq 为空
+
+*send操作*
+
+send操作主要逻辑
+
+- 非阻塞调用情况下快速检查失败（不需要锁）
+- 加锁
+- 如果接收队列中有 G ，G 出队，就会绕过buf直接将数据拷贝给 G（快速路径，
+- 队列缓冲区未满，将数据缓存后退出
+- 队列缓冲区已满，调用 Go 调度器，让出 G 的 M ，并将 G 加入 c.sendq
+- 解锁
+
+相关函数如下
+
+```
+// src/runtime/chan.go
+// send processes a send operation on an empty channel c.
+// The value ep sent by the sender is copied to the receiver sg.
+// The receiver is then woken up to go on its merry way.
+// Channel c must be empty and locked.  send unlocks c with unlockf.
+// sg must already be dequeued from c.
+// ep must be non-nil and point to the heap or the caller's stack.
+func send(c *hchan, sg *sudog, ep unsafe.Pointer, unlockf func(), skip int) {}
+```
+
+*recv操作*
+
+recv 操作与 send 逻辑类似
+
+- 非阻塞调用情况下快速检查失败（不需要锁）
+- 加锁
+- 检查通道是否被关闭，否则退出
+- 如果发送队列中有 G ，G 出队，直接把数据拷贝给 G
+- 缓冲区有数据，将数据取出拷贝给 G
+- 缓冲区无数据，调用 Go 调度器让出 G 的 M ，G 加入 c.recvq
+- 解锁
+
+相关函数如下
+
+```
+// src/runtime/chan.go
+// chanrecv receives on channel c and writes the received data to ep.
+// ep may be nil, in which case received data is ignored.
+// If block == false and no elements are available, returns (false, false).
+// Otherwise, if c is closed, zeros *ep and returns (true, false).
+// Otherwise, fills in *ep with an element and returns (true, true).
+// A non-nil ep must point to the heap or the caller's stack.
+func chanrecv(c *hchan, ep unsafe.Pointer, block bool) (selected, received bool) {}
+```
+
+.play core/concurrent/chan.go
+.play core/raw/chan_raw.go
+
+# select
+
+Go 中 select 和 chan 是搭配使用的，当 select 中没有 case 语句的时候，会阻塞当前的 goroutine。
+
+另外还可以认为 select 是 Go 在语言层面提供的 I/O 多路复用的机制，用来检测多个 chan 是否可读或可写。
+
+select源代码结构如下
+
+```
+// src/runtime/select.go
+// case kind case 种类
+const (
+	caseNil = iota
+	caseRecv
+	caseSend
+	caseDefault
+)
+// case 结构体描述
+type scase struct {
+	c           *hchan         // chan 结构体指针
+	elem        unsafe.Pointer // 读写数据的缓冲区指针
+	kind        uint16         // 如上定义的 kind
+	pc          uintptr        // 竞争检测相关指针 race pc
+	releasetime int64
+}
+```
+
+执行select调用函数selectgo的代码结构如下
+
+```
+// src/runtime/select.go
+// selectgo implements the select statement.
+//
+// cas0 points to an array of type [ncases]scase, and order0 points to
+// an array of type [2*ncases]uint16. Both reside on the goroutine's
+// stack (regardless of any escaping in selectgo).
+//
+// selectgo returns the index of the chosen scase, which matches the
+// ordinal position of its respective select{recv,send,default} call.
+// Also, if the chosen scase was a receive operation, it reports whether
+// a value was received.
+func selectgo(cas0 *scase, order0 *uint16, ncases int) (int, bool) {}
+```
+
+`selectgo` 主要逻辑
+
+- 使用堆排序将 scase 排序，时间复杂度 O(nlogn)
+- 所有chan上锁
+- 如果 scase 全阻塞，调用调度器 gopark 让出 M ，根据 scase 的类型将当前 G 加入所有 chan 的发送队列 c.sendq 或接收队列 c.recvq
+- 如果有数据可写或者可接收，将数据写入chan或接收到本地缓冲区
+- 解锁，返回就绪的 scase 下标和状态
+
+.play core/concurrent/select.go
+.play core/raw/select_raw.go
+
+# context
+
+由于 Go 没有向使用者暴露 goroutine 的 Id ，使用者没办法显式控制 goroutine ，这就引入了 context 包，用于跟踪 goroutine 的调用树。
+
+.play core/concurrent/context.go
+

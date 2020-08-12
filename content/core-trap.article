@@ -1,0 +1,44 @@
+语言陷阱
+Go编程中的潜规则
+
+Vouv
+https://github.com/vouv
+
+# 字符串取值与遍历
+
+在Golang中，直接对字符串取下标索引和使用range遍历获得的值的类型是不一样的，str[i]类型为byte，使用range遍历获得的值是rune（也是int32）。
+
+.play core/trap/string.go
+
+# range复用临时变量
+
+使用range遍历时，只会生成一次临时变量i，并在每次循环过程中修改i。
+
+在右侧代码中，我们希望启动8个goroutine分别打印1-8之间的数字，但是结果并不正确。
+
+如果我们使用 `go race` 命令对其进行测试，会发现多个goroutine对i存在竞争关系。
+
+.play core/trap/range_i.go
+.play core/trap/range_i_correct.go
+
+# defer陷阱
+
+defer在开发中我们主要关注它对函数返回值的影响和对性能的影响。
+
+注意到右侧代码中f1()调用的返回值是1不是0，原因是：
+
+- 首先由函数调用方开辟栈空间，保存返回值
+- 函数定义了r指向函数返回值的栈地址，返回时r被设为0
+- 函数执行defer，此时r被设为1，因此函数调用结果为1
+
+.play core/trap/defer.go
+
+# 切片陷阱
+
+对一个数组或切片取切片后，进行 append 操作，会影响到原切
+
+*nil切片和空切片*
+
+nil切片和空切片再底层上是不同的，nil切片内部指针为0，而空切片指针有分配。
+
+.play core/trap/slice.go

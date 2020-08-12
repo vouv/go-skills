@@ -1,0 +1,85 @@
+{{/*{
+This is the action template.
+It determines how the formatting actions are rendered.
+*/}}
+
+{{define "section"}}
+  <h1>{{.Title}}</h1>
+  {{range .Elem}}{{elem $.Template .}}{{end}}
+{{end}}
+
+{{define "h2"}}
+	<h2><b>{{.Title}}</b></h2>
+{{end}}
+
+
+{{define "h3"}}
+	<h3><b>{{.Title}}</b></h3>
+{{end}}
+
+{{define "h4"}}
+	<h4>{{.Title}}</h4>
+{{end}}
+
+
+{{define "list"}}
+  <ul>
+  {{range .Bullet}}
+    <li>{{style .}}</li>
+  {{end}}
+  </ul>
+{{end}}
+
+{{define "zlist"}}
+	<ol>
+        {{range .Bullet}}
+			<li>{{style .}}</li>
+        {{end}}
+	</ol>
+{{end}}
+
+{{define "code-block"}}
+   {{if .Lines}}
+	<pre><code class="{{.Language}}">{{range .Lines}} <span>{{.}}</span>{{end}}</code></pre>
+   {{else}}
+       {{template "newline"}}
+   {{end}}
+   <script>
+       document.querySelectorAll('pre code').forEach((block) => {
+           hljs.highlightBlock(block);
+       });
+   </script>
+{{end}}
+
+{{define "text"}}
+  {{if .Pre}}
+  <pre class="code-block">{{range .Lines}}{{.}}{{end}}</pre>
+  {{else}}
+  <p>
+    {{range $i, $l := .Lines}}{{if $i}}{{template "newline"}}
+    {{end}}{{style $l}}{{end}}
+  </p>
+  {{end}}
+{{end}}
+
+{{define "code"}}
+	{{if .Play}}
+		{{/* playable code is not displayed in the slides */}}
+	{{else}}
+		<div>{{.Text}}</div>
+	{{end}}
+{{end}}
+
+{{define "image"}}
+  <img src="{{.URL}}"{{with .Height}} height="{{.}}"{{end}}{{with .Width}} width="{{.}}"{{end}}>
+{{end}}
+
+{{define "link"}}
+  <p class="link"><a href="{{.URL}}" target="_blank">{{style .Label}}</a></p>
+{{end}}
+
+{{define "html"}}{{.HTML}}{{end}}
+
+{{define "newline"}}
+{{/* No automatic line break. Paragraphs are free-form. */}}
+{{end}}

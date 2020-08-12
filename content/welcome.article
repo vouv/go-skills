@@ -1,0 +1,88 @@
+开始学习
+页面结构、主要内容、推荐书籍、友情链接
+
+Vouv
+https://github.com/vouv
+
+# 页面结构
+
+界面分为三大部分：
+
+- 顶栏
+- 左侧学习栏
+- 右侧可在线运行的代码编辑器
+
+## 顶栏
+
+- [[javascript:highlight("span.nav:eq(0)")][目录]] : 查看目录
+- [[javascript:highlight("span.nav:eq(1)")][Github]] : 前往Github项目页面
+- [[javascript:highlight("span.nav:eq(2)")][Issue]] : 前往Github反馈Issue
+- [[javascript:highlight("span.nav:eq(3)")][模式切换]] : 切换（日间/夜间）模式
+
+## 编辑器
+
+- [[javascript:highlight("#run")][运行]] : 在线运行代码 （快捷键： `Shift+Enter`）
+- [[javascript:highlight("#format")][格式化]] : 执行 `fmt` 命令 （快捷键： `Ctrl+Enter`）
+- [[javascript:highlight("#reset")][重置]] : 重置代码
+- [[javascript:highlight(".config-button")][语法高亮]] : 编辑器语法高亮开关
+
+.play welcome/welcome.go
+
+# 主要内容
+
+本系列复习教程灵感基于GO官方[[https://tour.golang.org][Tour]]，用在线运行代码的方式方便读者复习。
+
+虽然教程面向GO后端开发工程师，但是其中有很大部分知识都是作为一名软件工程师必备的，作者知识有限，在整理资料的过程中不免有遗漏或者错误。
+
+如果资料有错误之处或者各位读者有任何意见或建议，都可以[[javascript:highlight("span.nav:eq(2)")][提Issue]]，我会尽快处理。
+
+## 注意
+
+本教程是面向复习的，并且多数时候以代码为主，可能不适用于新同学从零开始学习！想从零开始学习的同学可以选择点击从文末建议的学习、刷题网站或论坛进行学习交流。
+
+本教程在内容上假定读者已经学习过相关知识，所以只会对重要的部分做一些强调。
+
+.play welcome/welcome.go
+
+# 推荐书籍
+
+[[https://book.douban.com/subject/27044219/][Go程序设计语言]]
+
+[[https://book.douban.com/subject/30351288/][Go语言核心编程]]
+
+[[https://book.douban.com/subject/27016236/][Go并发编程实战（第2版）]]
+
+[[https://book.douban.com/subject/27204133/][Go Web编程]]
+
+[[https://book.douban.com/subject/19952400/][算法]]
+
+[[https://book.douban.com/subject/26999243/][亿级流量网站架构核心技术]]
+
+.play playground/lissajous.go
+
+# 友情链接
+
+[[https://golang.org/][golang.org]]
+
+[[https://tour.golang.org][A Tour of GO]]
+
+[[https://tour.go-zh.org/][Tour中文版]]
+
+[[https://blog.golang.org/][Go Blog]]
+
+[[https://studygolang.com/][GO语言中文网]]
+
+[[https://studygolang.com/pkgdoc][Golang标准库文档]]
+
+[[https://github.com/avelino/awesome-go][awesome-go项目]]
+
+[[https://time.geekbang.org/][极客时间]]
+
+[[https://www.imooc.com/][慕课网IMOOC]]
+
+[[https://leetcode-cn.com/problemset/all/][力扣LeetCode]]
+
+[[https://www.nowcoder.com/][牛客网]]
+
+.play playground/lissajous.go
+

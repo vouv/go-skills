@@ -1,0 +1,198 @@
+html, body {
+    background-color: #3f3f3f;
+}
+
+.slide-content h1 {
+    border-bottom: 1px solid rgb(47, 47, 47);
+}
+
+/* 顶部导航栏 */
+.top-bar {
+    color: #f8f8f2;
+    background: #4d4d4c;
+}
+
+.nav {
+    fill: #999;
+}
+.nav:hover {
+    fill: #fff;
+}
+
+/* 右侧菜单 */
+.toc {
+    background-color: #4d4d4c;
+    border-left: 4px solid #4d4d4c;
+    border-bottom: 4px solid #4d4d4c;
+}
+.toc-module {
+    color: #f8f8f2;
+    background-color: #4d4d4c;
+}
+.toc-lesson {
+    background: #999;
+    /*color: #fff;*/
+}
+.toc-page{
+    color: #fff;
+    background-color: #3f3f3f;
+}
+.toc a {
+     color: #969696;
+}
+
+/* list 页面 */
+
+.container {
+    background: #3f3f3f;
+    color: #c8c8c8;
+}
+.container a {
+    color: #f8f8f2;
+}
+
+.lesson {
+    background: #4d4d4c;
+}
+
+.lesson-title {
+    color: #98a6ad;
+}
+
+h1, h2, h3, h4 {
+    color: #999;
+    line-height: 32px;
+    margin: 0;
+}
+
+p,p span {
+    color: #c8c8c8;
+}
+
+a {
+    color: #0681d0;
+}
+
+p a {
+    /*text-decoration:underline;*/
+}
+
+
+a.logo {
+    color: #fff;
+}
+
+li {
+    color: #c8c8c8;
+}
+
+/* 左侧文本内容 */
+.slide-content {
+    background-color: #3f3f3f;
+}
+
+pre.code-block {
+    color: #c8c8c8;
+    background-color: #262626;
+}
+
+code.inline {
+    color: #c8c8c8;
+    background-color: #262626;
+}
+
+.relative-content {
+    background-color: #3f3f3f;
+}
+
+/* 左侧翻页 */
+.module-bar {
+    color: #98a6ad;
+}
+
+.module-bar a {
+    /*color: #708;*/
+}
+
+.module-title {
+    color: #999;
+}
+
+
+/* 右侧编辑器 */
+
+#right-side {
+    background-color: #3f3f3f;
+}
+
+#explorer {
+    background: #3f3f3f;
+}
+
+/*#file-editor .CodeMirror {*/
+/*    height: 100%;*/
+/*    background: #262626;*/
+/*}*/
+
+/*#file-editor .CodeMirror-lines, #file-editor .CodeMirror-gutters {*/
+/*    background: #262626;*/
+/*}*/
+
+/*.CodeMirror pre {*/
+/*    background: #262626 !important;*/
+/*}*/
+
+/*.CodeMirror-linenumber {*/
+/*    color: #c8c8c8 !important;*/
+/*}*/
+
+.output-menu, #file-menu {
+    background: #3f3f3f;
+}
+
+.output > pre {
+    background: #e9ecef;
+}
+
+.output .system {
+    color: #888;
+}
+.output .stderr {
+    color: #D00A0A;
+}
+
+
+/* media */
+@media (min-width: 601px) {
+    #editor-container {
+    }
+    #left-side {
+    }
+    .output {
+        background-image: url(/static/img/gopher.png);
+        background-color: #989898;
+    }
+    div[vertical-slide] {
+        background: #4d4d4c;
+    }
+    div[horizontal-slide] {
+        background: #4d4d4c;
+    }
+    .slide-content {
+    }
+    .module-bar {
+    }
+    #top-part {
+        background: #e0ebf5;
+    }
+    #file-editor {
+    }
+    #bottom-part {
+    }
+    #explorer {
+    }
+    #file-menu {
+    }
+    .output {
+    }
+}

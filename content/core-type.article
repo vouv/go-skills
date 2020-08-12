@@ -1,0 +1,300 @@
+类型系统
+slice、map、interface
+
+Vouv
+https://github.com/vouv
+
+# slice
+
+对于数组和切片的实现，同大多数编程语言一样，Go会在操作系统中申请一片连续内存空间，以O(1)时间读取数据。
+
+*源码分析*
+
+切片有三个属性字段：长度、容量和指向数组的指针，代码结构如下
+
+```go
+// src/runtime/slice.go
+type slice struct {
+	array unsafe.Pointer // 底层指针，指向数组
+	len   int            // 获取数组长度，因此调用len(slice)复杂度为O(1)
+	cap   int            // 获取数组容量，如果申请长度超过容量则引发扩容
+}
+```
+
+.image /content/img/core/slice.png
+
+## 扩容规则
+
+- 开始时增长因子为2，当切片的容量小于1024时，扩容的时候cap翻倍
+- 当容量超过1024后，增长因子为1.25，扩容的时候增加原来的1/4
+
+扩容核心函数结构如下
+
+```go
+// src/runtime/slice.go
+func growslice(et *_type, old slice, cap int) slice {
+	// ...省略
+
+	newcap := old.cap
+	doublecap := newcap + newcap
+	if cap > doublecap {
+		newcap = cap
+	} else {
+		// 扩容核心逻辑
+		if old.len < 1024 { // 容量小于1024，双倍扩容
+			newcap = doublecap
+		} else { // 容量大于等于1024，增量1/4
+			// Check 0 < newcap to detect overflow
+			// and prevent an infinite loop.
+			for 0 < newcap && newcap < cap {
+				newcap += newcap / 4
+			}
+			// Set newcap to the requested cap when
+			// the newcap calculation overflowed.
+			if newcap <= 0 {
+				newcap = cap
+			}
+		}
+	}
+	// ...省略
+	return slice{p, old.len, newcap}
+}
+```
+
+*数组和slice的区别*
+
+- 数组创建后不可以再追加元素，slice可以
+- 作为函数参数时，数组是值类型传递副本，slice是引用类型传递指针
+
+## 参考
+
+[[https://blog.golang.org/go-slices-usage-and-internals][Go in action]]
+
+.play core/type/slice.go
+.play core/type/slice_raw.go
+
+# map
+
+设计实现map需要考虑：
+
+- 装载因子（load factor）*：填入表中的元素个数/散列表的长度
+- 散列表设计核心问题：散列函数设计和散列冲突解决
+- 散列冲突解决办法：开放寻址法和链表法（进阶可改造为红黑树，例如Java HashMap）
+
+## 源码分析
+
+Golang中map的实现主要位于 `runtime/map.go` 中，hmap为对应的类型定义，代码结构如下
+
+```go
+// src/runtime/map.go
+type hmap struct {
+	count     int // O(1)获取长度
+	flags     uint8
+	B         uint8  // 扩容相关
+	noverflow uint16
+	hash0     uint32 // 哈希计算种子
+
+	buckets    unsafe.Pointer // 保存bucket的数组，长度总是为2^B次幂
+	oldbuckets unsafe.Pointer // 扩容的时候，存放旧bucket
+	nevacuate  uintptr        // progress counter for evacuation (buckets less than this have been evacuated)
+
+	extra *mapextra // optional fields
+}
+```
+
+hmap的字段中，比较重要的有
+
+- buckets：用来保存bucket的数组
+- oldbuckets：扩容时候保存旧的bucket数组
+
+bucket代码结构如下
+
+```go
+// src/runtime/map.go
+// 装载数据的bucket
+type bmap struct {
+	// 高位哈希值
+	// 之后跟着的就是保存数据的数组以及指向下一个bmap的指针
+	// 因为这部分是通过指针运算获取的，所以没有写在定义中
+	tophash [bucketCnt]uint8
+}
+```
+
+在hmap中所有的数据都保存在bucket数组中，而buckets数组又通过拉链发解决哈希冲突，于是组织方式
+
+.image /content/img/core/hmap.png
+
+对于bucket数组，数据的key和value都是保存在字节数组中，但是它们的组织方式并不是不是key/val/key/val这样存储，而是key1/key2/key3/key.../val1/val2/val3存储的，而原因正如源码注释所说，为了消除内存对齐带来的空间浪费，还举了map[int64]int8的例子。
+
+## 散列函数
+
+Go中散列函数值被分为高位和低位哈希值，哈希值的低位用于获取数据属于哪个bucket，高位则用于查找bucket数组中的key。
+
+散列函数部分代码结构如下
+
+```go
+// src/runtime/map.go
+// 获取哈希值低位
+func bucketShift(b uint8) uintptr {
+	// Masking the shift amount allows overflow checks to be elided.
+	return uintptr(1) << (b & (sys.PtrSize*8 - 1))
+}
+
+// 获取高位哈希值
+func tophash(hash uintptr) uint8 {
+	top := uint8(hash >> (sys.PtrSize*8 - 8))
+	if top < minTopHash {
+		top += minTopHash
+	}
+	return top
+}
+```
+
+查找函数部分代码结构如下
+
+```go
+// src/runtime/runtime2.go
+// 获取h[key]对应的指针
+func mapaccess1(t *maptype, h *hmap, key unsafe.Pointer) unsafe.Pointer {
+	// ...省略
+	alg := t.key.alg
+	hash := alg.hash(key, uintptr(h.hash0)) // 由key计算哈希值
+	m := bucketMask(h.B)
+
+	// 使用哈希值的低位来定位到hmap中的bucket
+	b := (*bmap)(add(h.buckets, (hash&m)*uintptr(t.bucketsize)))
+	if c := h.oldbuckets; c != nil {
+		// ...省略
+	}
+	top := tophash(hash) // 使用哈希值的高位来定位bucket中的key
+bucketloop:
+	for ; b != nil; b = b.overflow(t) {
+		// ...省略查找bucket的代码
+	}
+	return unsafe.Pointer(&zeroVal[0])
+}
+```
+
+## map扩容
+
+map的扩容触发条件由装载因子决定，当装载因子超过阈值会引发扩容，申请一个更大的数组，并把原来的数据拷贝过去。
+
+但是数据的拷贝操作并不是一次完成，与Redis的dict扩容方式类似，Go采取了增量式扩容的方法，当访问就bucket数组的时候才做数据迁移。
+
+## map删除
+
+map删除操作比较简单，就是把hmap中对数据的引用去掉，由GC来负责垃圾回收。
+
+.play core/type/map.go
+.play core/type/map_raw.go
+
+# interface
+
+接口类型是Golang的特色，Golang通过接口实现了多态和反射。
+
+interface底层是由iface和eface两种类型实现的.
+
+## 非空接口iface
+
+非空接口的初始化过程就是初始化一个iface类型的结构。代码如下
+
+```go
+// src/runtime/runtime2.go
+type iface struct {
+	tab  *itab          // itab存放类型、方法指针等
+	data unsafe.Pointer // 数据指针
+}
+```
+
+在这里itab存放接口自身类型和绑定的实例类型信息，data指向具体的实例数据，如果传递给接口的是值类型，data指向实例的副本，如果是指针类型则指向指针的副本。
+
+itab代码结构如下
+
+```go
+// src/runtime/runtime2.go
+type itab struct {
+	inter *interfacetype // 接口自身的静态类型
+	_type *_type         // 接口存放的具体实例类型（动态类型）
+	hash  uint32         // 存放具体的哈希值
+	_     [4]byte
+	fun   [1]uintptr     // 函数指针，这里虽然只有一个元素，但是实际上是可变的
+}
+```
+
+需要注意的是其实_type里也有hash，这里冗余存放是为了加速接口断言的速度。
+
+itab是非空接口实现的基础，itab信息被编译器和链接器保存到可执行文件的只读存储段（.rodata）中，itab存放在静态存储空间中，因此不会被GC回收。
+
+
+## 空接口eface
+
+eface代码结构如下
+
+```go
+// src/runtime/runtime2.go
+type eface struct {
+	_type *_type         // 类型元信息
+	data  unsafe.Pointer // 存放具体类型的值拷贝
+}
+```
+
+虽然eface是无方法的接口，从代码结构上可以只读，空接口并不是真的为空，空接口在Golang中真正的意义是支持多态，空接口类型通常有如下几种使用方式
+
+- 通过接口类型断言
+- 通过接口类型查询
+- 通过反射使用
+
+## 元数据类型
+
+Go是强类型的语言，编译器在编译的时候会做严格的类型检查，所以底层上Go必须维护类型相关的信息，我们称为类型元信息，代码结构如下
+
+```go
+// src/runtime/type.go
+type _type struct {
+	size       uintptr  // 大小信息
+	ptrdata    uintptr  // size of memory prefix holding all pointers
+	hash       uint32   // 类型哈希
+	tflag      tflag    // 类型特征标记
+	align      uint8    // _type作为整体变量存放时对齐的字节数
+	fieldalign uint8    // 当前结构体对齐的字节数
+	kind       uint8    // 基础类型枚举值和放射中的Kind一致，kind决定如何解析该类型
+	alg        *typeAlg // 指向函数指针表，该表有两个函数，
+						// 一个是计算类型hash，另一个是比较两个类型是否相同
+	gcdata    *byte     // GC相关
+						// 以下由链接器填充
+	str       nameOff   // 表示类型名称字符串在编译后二进制文件中某个section的偏移量
+	ptrToThis typeOff   // 表示类型元信息在编译后二进制文件中某个section的偏移量
+}
+```
+
+_type包含了所有类型的共同元信息，使得编译器可以在运行时根据元信息动态解析到具体类型。
+
+这里要注意的是，Go中的元信息最初由编译器构建并存储到编译后的对象文件中，之后再由链接器进行段合并和符号重定向。这些类型信息在接口的动态调用和放射中会被Go运行时引用。
+
+最后再看看接口的类型元信息数据结构
+
+```go
+// src/runtime/type.go
+type imethod struct {
+	name nameOff // 编译后section偏移量
+	ityp typeOff // 编译后section偏移量
+}
+
+// src/runtime/type.go
+type interfacetype struct {
+	typ     _type     // 类型通用元数据信息
+	pkgpath name      // 接口所属包的名字信息，name存放了名称和描述
+	mhdr    []imethod // 接口的方法
+}
+```
+*接口调用开销*
+
+接口调用过程有两个耗时的部分，一个是接口实例化过程（构建iface），实例化后结构里的itab是可以复用的；另一个是接口方法调用，它是一个间接的函数指针调用。
+
+因此接口调用是一种动态计算后的跳转调用，这对CPU缓存不友好。
+
+.play core/type/interface.go
+.play core/raw/runtime2_raw.go
+.play core/raw/type_raw.go
+
+

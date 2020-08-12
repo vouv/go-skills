@@ -1,0 +1,450 @@
+算法思想
+二分查找、分治、贪心、回溯、动态规划
+
+Vouv
+https://github.com/vouv
+
+# 位运算（Bitwise）
+
+程序中的所有数在计算机内存中都是以二进制的形式储存的。位运算就是直接对整数在内存中的二进制位进行操作。Go中常见的位运算操作如下
+
+```
+按位与    &
+按位或    |
+异或      ^
+位左移    <<
+位右移    >>
+```
+
+*常见位运算规则*
+
+- n / 2 : 想到 n >> 1
+- n % 2 : 想到 n & 1
+
+.play algo/mind/bitwise.go
+
+# 二分查找（Binary Search）
+
+二分查找是一种高效的查找算法，时间复杂度为 O(logn)。
+
+举个例子，n=2³²，这个数大约是42亿。我们对这个数据数据中用二分查找一个数据，最多只需要比较 32 次。
+
+一个简单二分查找实现如下
+
+```go
+func BinarySearch(arr []int, target int) (index int) {
+	n := len(arr)
+	lo := 0
+	hi := n - 1
+	for lo <= hi {
+		mid := lo + (hi - lo) >> 1
+		if arr[mid] == target {
+			return mid
+		} else if arr[mid] < target {
+			lo = mid + 1
+		} else {
+			hi = mid - 1
+		}
+	}
+	return -1
+}
+```
+
+这里需要注意三个条件
+
+- 循环退出条件：lo <= hi
+- mid的取值: mid := lo + (hi - lo) >> 1 ， 计算机处理位运算要快得多，同时也防止溢出
+- low 和 high 的更新：这里注意lo和hi的更新方式，写错会出现死循环
+
+*二分查找的局限性*
+
+- 二分查找依赖顺序表结构，简单说就是数组
+- 二分查找针对的是有序数据
+- 数据量太小或者太大都不适合二分查找，太小体现不出优势，太大不容易申请到连续内存空间
+
+.play algo/mind/binary_search.go
+
+# 二分查找变体1 - 查找第一个值等于给定值的元素
+
+之前的实现只适用于数组中没有重复元素的情况，如果有序数据集合中存在重复的数据，我们希望找到第一个值等于给定值的数据，实现方式就不同了
+
+```go
+func BinarySearchFirst(arr []int, target int) (index int) {
+	n := len(arr)
+	lo := 0
+	hi := n - 1
+	for lo <= hi {
+		mid := lo + (hi - lo) >> 1
+		if arr[mid] == target {
+			if mid == 0 || arr[mid-1] != target {
+				return mid
+			} else {
+				hi = mid - 1
+			}
+		} else if arr[mid] < target {
+			lo = mid + 1
+		} else {
+			hi = mid - 1
+		}
+	}
+	return -1
+}
+```
+
+*简洁版*
+
+```go
+	func BinarySearchFirst(arr []int, target int) (index int) {
+		n := len(arr)
+		lo := 0
+		hi := n - 1
+		for lo <= hi {
+			mid := lo + (hi - lo) >> 1
+			if arr[mid] >= target {
+				hi = mid - 1
+			} else {
+				lo = mid + 1
+			}
+		}
+		if lo < n && arr[lo] == target {
+			return lo
+		}
+		return -1
+	}
+```
+
+.play algo/mind/binary_search_1.go
+.play algo/mind/binary_search_1_simple.go
+
+# 二分查找变体2 - 查找最后一个值等于给定值的元素
+
+```go
+func BinarySearchLast(arr []int, target int) (index int) {
+	n := len(arr)
+	lo := 0
+	hi := n - 1
+	for lo <= hi {
+		mid := lo + (hi-lo)>>1
+		if arr[mid] == target {
+			if mid == n-1 || arr[mid+1] != target {
+				return mid
+			} else {
+				lo = mid + 1
+			}
+		} else if arr[mid] < target {
+			lo = mid + 1
+		} else {
+			hi = mid - 1
+		}
+	}
+	return -1
+}
+```
+
+*简洁版*
+
+```go
+func BinarySearchLast(arr []int, target int) (index int) {
+	n := len(arr)
+	lo := 0
+	hi := n - 1
+	for lo <= hi {
+		mid := lo + (hi-lo)>>1
+		if arr[mid] <= target {
+			lo = mid + 1
+		} else {
+			hi = mid - 1
+		}
+	}
+	if hi < n && arr[hi] == target { return hi }
+	return -1
+}
+```
+
+.play algo/mind/binary_search_2.go
+.play algo/mind/binary_search_2_simple.go
+
+# 二分查找变体3 - 查找第一个大于等于给定值的元素
+
+```go
+func BinarySearchFirstGreater(arr []int, target int) (index int) {
+	n := len(arr)
+	lo := 0
+	hi := n - 1
+	for lo <= hi {
+		mid := lo + (hi-lo)>>1
+		if arr[mid] >= target {
+			if mid == 0 || arr[mid-1] < target {
+				return mid
+			} else {
+				hi = mid - 1
+			}
+		} else if arr[mid] < target {
+			lo = mid + 1
+		} else {
+			hi = mid - 1
+		}
+	}
+	return -1
+}
+```
+
+*简洁版*
+
+```go
+func BinarySearchFirstGreater(arr []int, target int) (index int) {
+	n := len(arr)
+	lo := 0
+	hi := n - 1
+	for lo <= hi {
+		mid := lo + (hi-lo)>>1
+		if arr[mid] >= target {
+			hi = mid - 1
+		} else {
+			lo = mid + 1
+		}
+	}
+	if lo < n && arr[lo] == target { return lo }
+	return -1
+}
+```
+
+.play algo/mind/binary_search_3.go
+.play algo/mind/binary_search_3_simple.go
+
+# 二分查找变体4 - 查找最后一个小于等于给定值的元素
+
+```go
+func BinarySearchLastLess(arr []int, target int) (index int) {
+	n := len(arr)
+	lo := 0
+	hi := n - 1
+	for lo <= hi {
+		mid := lo + (hi-lo)>>1
+		if arr[mid] <= target {
+			if mid == n-1 || arr[mid+1] > target {
+				return mid
+			} else {
+				lo = mid + 1
+			}
+		} else if arr[mid] < target {
+			lo = mid + 1
+		} else {
+			hi = mid - 1
+		}
+	}
+	return -1
+}
+```
+
+*简洁版*
+
+```go
+func BinarySearchLastLess(arr []int, target int) (index int) {
+	n := len(arr)
+	lo := 0
+	hi := n - 1
+	for lo <= hi {
+		mid := lo + (hi-lo)>>1
+		if arr[mid] <= target {
+			lo = mid + 1
+		} else {
+			hi = mid - 1
+		}
+	}
+	if hi > -1 && arr[hi] == target { return hi }
+	return -1
+}
+```
+
+.play algo/mind/binary_search_4.go
+.play algo/mind/binary_search_4_simple.go
+
+# 二分查找 - 小结
+
+凡是用二分查找能解决的，实际上绝大部分我们更倾向于用散列表或者二叉查找树。
+
+变体的二分查找算法写起来非常烧脑，很容易产生Bug，需要注意容易出错的细节：终止条件、区间上下界更新方法和返回值选择。
+
+二分查找的变体应用还有很多，这里给出一些LeetCode上的练习题
+
+[[https://leetcode-cn.com/problems/find-minimum-in-rotated-sorted-array/][寻找旋转排序数组中的最小值]]
+
+[[https://leetcode-cn.com/problems/search-in-rotated-sorted-array/][搜索旋转排序数组]]
+
+[[https://leetcode-cn.com/problems/find-minimum-in-rotated-sorted-array-ii/][寻找旋转排序数组中的最小值 II]]
+
+[[https://leetcode-cn.com/problems/search-in-rotated-sorted-array-ii/][搜索旋转排序数组 II]]
+
+.play algo/mind/binary_search_5.go
+
+# 哈希（Hash）
+
+将任意长度的二进制值串映射为固定长度的二进制值串，这个映射的规则就是哈希算法。
+
+哈希算法要求：
+
+- 从哈希值不能反向推导出原始数据（所以哈希算法也叫单向哈希算法）
+- 对输入数据非常敏感，哪怕原始数据只修改了一个 Bit，最后得到的哈希值也大不相同
+- 散列冲突的概率要很小，对于不同的原始数据，哈希值相同的概率非常小
+- 哈希算法的执行效率要尽量高效，针对较长的文本，也能快速地计算出哈希值
+
+*哈希算法应用*
+
+主要应用领域：安全加密、唯一标识、数据校验、散列函数、负载均衡、数据分片、分布式存储
+
+*应用一：安全加密*
+
+最常用于加密的哈希算法：
+
+- MD5（MD5 Message-Digest Algorithm，MD5 消息摘要算法）
+- SHA（Secure Hash Algorithm，安全散列算法）
+- DES（Data Encryption Standard，数据加密标准）
+- AES（Advanced Encryption Standard，高级加密标准）
+
+*应用二：唯一标识*
+
+海量的图库的图片检索，通过哈希算法计算哈希值，再做查询。
+
+*应用三：数据校验*
+
+类似BT下载，对文件分块计算哈希值，由于哈希算法对数据很敏感，只要文件块的内容有微小的改变，最后计算出的哈希值就会完全不同。
+
+*应用四：散列函数*
+
+散列表就是散列函数的主要应用之一，散列函数对于散列算法计算得到的值是否能反向解密也并不关心，它更加关注散列后的值是否能平均分布。除此之外，散列函数执行的快慢，也会影响散列表的性能。
+
+*应用五：负载均衡*
+
+负载均衡算法有很多，比如轮询、随机、加权轮询等。通过哈希算法可以实现一个会话粘滞（session sticky）的负载均衡算法。
+
+例如，通过哈希算法，对客户端 IP 地址或者会话 ID 计算哈希值，将取得的哈希值与服务器列表的大小进行取模运算，最终得到的值就是应该被路由到的服务器编号。
+
+不过这种方式存在缺陷：
+
+- 如果客户端很多，映射表可能会很大，比较浪费内存空间；
+- 客户端下线、上线，服务器扩容、缩容都会导致映射失效，这样维护映射表的成本就会很大；
+
+一个进阶的解决办法是使用一致性哈希算法。
+
+*应用六：数据分片*
+
+如果我们需要对一个很大的数据集使用多台机器处理，就可以先对数据进行分片，然后分发到多台机器处理，提高处理速度。
+
+实际上，这样的处理过程也是 [[/distributed-basic/3][MapReduce]] 的基本设计思想
+
+**
+
+*思考*
+
+1. 为什么哈希算法理论上是没办法做到完全不冲突？
+
+组合数学中一个非常基础的理论，鸽巢原理（也叫抽屉原理）。意思是，有 10 个鸽巢，有 11 只鸽子，那么肯定有 2 只鸽子在 1 个鸽巢内。
+
+.play algo/mind/hash.go
+
+# 深度和广度搜索
+
+# 分治（divide and conquer）
+
+分治算法（divide and conquer）的核心思想其实就是四个字，分而治之 ，也就是将原问题划分成 n 个规模较小，并且结构与原问题相似的子问题，递归地解决这些子问题，然后再合并其结果，就得到原问题的解。
+
+- 分解：将原问题分解成一系列子问题
+- 解决：递归地求解各个子问题，若子问题足够小，则直接求解
+- 合并：将子问题的结果合并成原问题。
+
+条件：
+
+- 原问题与分解成的小问题具有相同的模式
+- 原问题分解成的子问题可以独立求解，子问题之间没有相关性（与分治算法跟动态规划的区别）
+- 具有分解终止条件，也就是说，当问题足够小时，可以直接求解
+- 可以将子问题合并成原问题，而这个合并操作的复杂度不能太高，否则就无法减小算法总体复杂度了。
+
+## 经典题目
+
+- 二维平面上有 n 个点，如何快速计算出两个距离最近的点对？
+- 有两个 n*n 的矩阵 A，B，如何快速求解两个矩阵的乘积 C=A*B？
+
+.play algo/mind/dc.go
+
+## MapReduce
+
+# 回溯（Backtracking）
+
+回溯的处理思想类似枚举搜索。为了有规律地枚举和避免遗漏和重复，我们把问题求解的过程分为多个阶段。
+
+每个阶段，我们都会有多种选择（多条路），先选一条路走，当发现这条路走不通就回退到上一个选择阶段，另选一种走法继续走，直到枚举结束。
+
+回溯算法有很多经典的应用，比如数独、八皇后、0-1 背包、图的着色、旅行商问题、全排列等。
+
+*八皇后问题*
+
+假设有一个8x8的国际象棋棋盘，希望往里放8个皇后，每个皇后所在的行、列、对角线都不能有另一个棋子，八皇后问题就是期望找到所有满足这种要求的摆放。
+
+.image /content/img/algo/8-queens.png 0 200
+
+采用回溯的思路，依次将棋子放到第一行、第二行、第三行……第八行。在放置的过程中不停地检查是否满足要求。
+
+如果满足，则跳到下一行继续放置棋子；如果不满足，那就再换一种方法，继续尝试。
+
+参考 - [[https://leetcode-cn.com/problems/n-queens/][N皇后]]
+
+*0-1*背包*
+
+*正则表达式*
+
+假设正则表达式中只包含"*"和"?"这两种通配符，并且对这两个通配符的语义稍微做些改变.
+
+"*"匹配任意多个（大于等于 0 个）任意字符，"?"匹配零个或者一个任意字符。如何用回溯算法来判断一个给定的文本，能否跟给定的正则表达式匹配？
+
+.play algo/mind/bt_8_queen.go
+.play algo/mind/bt_0-1_bag.go
+.play algo/mind/bt_regex.go
+
+# 贪心（Greedy）
+
+贪心算法有很多经典的应用例如
+
+- 霍夫曼编码（Huffman Coding）
+- Prim 和 Kruskal 最小生成树算法
+- Dijkstra 单源最短路径算法
+
+## Huffman压缩编码
+
+霍夫曼编码不仅会考察文本中有多少个不同字符，还会考察每个字符出现的频率，根据频率的不同，选择不同长度的编码。
+
+## 1. 分糖果
+
+有 m 个糖果和 n 个孩子。现在要把糖果分给这些孩子吃，但是糖果少，孩子多 (m < n)，如何分配糖果，能尽可能满足最多数量的孩子？
+
+## 2.钱币找零
+
+我们有 1 元、2 元、5 元、10 元、20 元、50 元、100 元这些面额的纸币，它们的张数分别是 c1、c2、c5、c10、c20、c50、c100。
+
+我们现在要用这些钱来支付 K 元，最少要用多少张纸币呢？
+
+## 3.区间覆盖
+
+有 n 个区间，区间的起始端点和结束端点分别是[l1, r1]，[l2, r2]，[l3, r3]，……，[ln, rn]。
+
+我们从这 n 个区间中选出一部分区间，这部分区间满足两两不相交（端点相交的情况不算相交），最多能选出多少个区间呢？
+
+# 动态规划（Dynamic Programming）
+
+todo
+
+# 概率统计
+
+todo
+
+# 搜索
+
+todo
+
+# 索引
+
+todo
+
+# 并行算法
+
+todo

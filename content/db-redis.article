@@ -1,0 +1,15 @@
+Redis
+string、list、hash、set、zset以及sds、robj、ziplist、quicklist、skiplist
+
+Vouv
+https://github.com/vouv
+
+# sds
+
+# robj
+
+# ziplist
+
+# quicklist
+
+# skiplist

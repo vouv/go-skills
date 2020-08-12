@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-cn" ng-app="tour">
+
+<head>
+    {{.AnalyticsHTML}}
+    <meta charset="utf-8">
+    <title>Go-skills</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="shortcut icon" sizes="196x196" href="/favicon.ico">
+    <link rel="stylesheet" href="/static/lib/hljs/styles/mono-blue.css">
+    <link rel="stylesheet" href="/static/css/app.css">
+
+    <link rel="alternate stylesheet" href="/static/css/dark.css" title="dark1">
+    <link rel="alternate stylesheet" href="/static/lib/hljs/styles/agate.css" title="dark2">
+
+    <link rel="stylesheet" href="/static/lib/codemirror/lib/codemirror.css">
+</head>
+
+<body>
+    {{/* 顶部导航栏 */}}
+    <div class="bar top-bar">
+        <a class="left logo" href="/list">Go-skills</a>
+        <div table-of-contents-button=".toc"></div>
+        <div follow-button></div>
+        <div feedback-button></div>
+        <div style-button></div>
+    </div>
+
+    {{/* 正文 */}}
+    <div table-of-contents></div>
+
+    <div ng-view ng-cloak class="ng-cloak"></div>
+
+    <script src="/script.js"></script>
+    <script>
+    window.transport = {{.Transport}}();
+    window.socketAddr = "{{.SocketAddr}}";
+
+    function highlight(selector) {
+        var speed = 50;
+        var obj = $(selector).stop(true, true);
+        for (let i = 0; i < 5; i++) {
+            obj.addClass("highlight", speed);
+            obj.delay(speed);
+            obj.removeClass("highlight", speed);
+        }
+    }
+
+    function highlightAndClick(selector) {
+        highlight(selector);
+        setTimeout(function() {
+            $(selector)[0].click()
+        }, 750);
+    }
+
+    function click(selector) {
+        $(selector)[0].click();
+    }
+    </script>
+</body>
+
+</html>

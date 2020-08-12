@@ -1,0 +1,36 @@
+分布式系统理论
+Paxos、Raft、MapReduce、GFS、
+
+Vouv
+https://github.com/vouv
+
+* CAP理论
+
+CAP：
+
+- 一致性（C：Consistency）
+- 可用性（A：Availability）
+- 分区容忍性（P：Partition Tolerance）
+
+分布式系统不可能同时满足C、A和P，最多只能同时满足其中两项。
+
+# BASE理论
+
+BASE：
+
+- 基本可用（Basically Available）
+- 软状态（Soft State）
+- 最终一致性（Eventually Consistent）
+
+BASE 是基本可用（Basically Available）、软状态（Soft State）和最终一致性（Eventually Consistent）三个短语的缩写。
+
+# MapReduce
+
+*参考*
+
+[[/static/pdf/mapreduce.pdf][Google MapReduce(2004)]]
+
+# Google File System
+
+# Raft
+

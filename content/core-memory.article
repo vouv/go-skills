@@ -1,0 +1,13 @@
+内存分配
+heap、bitmap、areana
+
+Vouv
+https://github.com/vouv
+
+# 一般进程的内存分布
+
+# Go内存分配
+
+# Go中的内存对齐
+
+.play core/memory/align.go
